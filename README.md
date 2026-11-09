@@ -266,4 +266,5 @@ Run `npm run test:grading` for isolated PostgreSQL tests of grading, result visi
 request limits and ownership controls. These tests use PGlite and do not connect to the online database. If editing the grading
 migration, run `node scripts/sync-grading-schema.mjs` to refresh its student-result function and the standalone setup.
 #   E x a m P r o c t o r  
+ #   E x a m P r o c t o r  
  
