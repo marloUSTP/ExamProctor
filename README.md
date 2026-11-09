@@ -1,10 +1,56 @@
 # Exam Proctor
 
-Online exams with live proctoring, built with Next.js 16, Supabase and shadcn/ui.
+Exam Proctor is a web app for creating online exams, monitoring attempts live, and releasing grades.
+Teachers manage exams from a dashboard. Students join with an exam code and email.
 
-- **Teachers** sign in at `/teacher/login` with the built-in account (no sign-up), create exams with an answer key, approve students, and watch a live dashboard.
-- **Students** start with exam code and email — no account. Existing students continue immediately; new students
-  then enter first and last name to request teacher approval. The email lookup itself creates no entry.
+Built with Next.js 16, Supabase, and shadcn/ui.
+
+## Quick start
+
+Use Node.js 22.13 or later, npm, and a Supabase project.
+
+1. Clone the repository and install dependencies.
+
+   ```sh
+   git clone https://github.com/marloUSTP/ExamProctor.git
+   cd ExamProctor
+   npm ci
+   ```
+
+2. For a new database, open the Supabase **SQL Editor** and run [`supabase/schema.sql`](supabase/schema.sql).
+   For an existing Exam Proctor database, review the upgrade notes below before applying any missing
+   [database migrations](supabase/migrations).
+
+3. Copy [`.env.example`](.env.example) to `.env.local` in the project root. Fill in the project URL and publishable
+   key. Add a secret key, username, and strong password to create the first teacher account. Keep the secret key
+   and password in the local file.
+
+   ```dotenv
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+   SUPABASE_SECRET_KEY=your-secret-key
+   TEACHER_USERNAME=your-teacher-username
+   TEACHER_PASSWORD=your-strong-password
+   ```
+
+   See the [Supabase API keys guide](https://supabase.com/docs/guides/getting-started/api-keys) for key locations.
+
+4. Turn off **Allow new users to sign up** in the Supabase Authentication settings. Create the teacher account and start the app.
+
+   ```sh
+   node --env-file=.env.local scripts/seed-teacher.mjs
+   npm run dev
+   ```
+
+   Sign in at [`/teacher/login`](http://localhost:3000/teacher/login) with the teacher username and password you set.
+   Students join at [`/join`](http://localhost:3000/join) and look up released scores at
+   [`/results`](http://localhost:3000/results).
+
+## Features
+
+- **Teachers** create exams with an answer key, approve students, and watch attempts from a live dashboard.
+- **Students** enter an exam code and email. Returning students continue immediately. New students enter their
+  first and last names to request teacher approval.
 - Returning students need only the same exam code and email, even on a new browser or device. Approved students
   see the start screen, pending students wait for approval, and active attempts resume with saved answers.
   Rejected and completed attempts keep their status. Before a new registration, names are checked ignoring case
@@ -49,32 +95,6 @@ Online exams with live proctoring, built with Next.js 16, Supabase and shadcn/ui
   This feature uses the existing rubric approval database functions and requires no additional migration.
 - The system never records which app or website a student opened — only that they left the exam.
 
-## Setup
-
-1. **Database** — in the Supabase dashboard open **SQL Editor → New query**, paste all of
-   [`supabase/schema.sql`](supabase/schema.sql) and click **Run**.
-   - Already ran an older `schema.sql`? Run the `supabase/update-*.sql` files you haven't run yet instead, in order.
-2. **Teacher account** — after the schema is applied, add these values to `.env.local` (project root or `supabase/.env.local`):
-   ```
-   SUPABASE_SECRET_KEY=...         # Supabase project Settings → API Keys; keep this server-side
-   TEACHER_PASSWORD=...            # choose a strong password
-   # TEACHER_USERNAME=p3lep404     # optional; this is the default
-   ```
-   Then run `npm run seed:teacher`. It creates or enables the teacher in Supabase Auth and adds the teacher
-   record. The default login username is `p3lep404`; the password is the value you set in `.env.local`.
-3. **Turn off sign-ups** — **Authentication → Sign In / Providers → Allow new users to sign up: off**. There is no
-   sign-up page, and only accounts in the `teachers` table can manage exams anyway.
-4. **Environment** — `.env.local` needs:
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=...
-   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
-   SUPABASE_SECRET_KEY=...        # needed only to seed a teacher; never prefix with NEXT_PUBLIC_
-   TEACHER_PASSWORD=...           # needed only to seed a teacher
-   ```
-5. `npm install` then `npm run dev`.
-   - Students: http://localhost:3000
-   - Teacher: http://localhost:3000/teacher/login (not linked from the home page)
-
 ## How it fits together
 
 The teacher workspace uses a sliding tab indicator and short panel reveals inspired by the
@@ -94,9 +114,9 @@ These checks use simulated storage and network responses and do not connect to t
 | Teacher login and dashboard (monitor, questions, settings, results) | `src/app/teacher`, `src/components/teacher` |
 | Live updates + teacher notifications (Supabase Realtime) | `src/hooks/use-exam-live.ts` |
 
-Students never get table access: every student action is a database function that checks their secret session
-token, so the answer key and other students' data can't be read from the browser. The violation count and
-auto-submit are decided in the database, so they can't be bypassed by editing the page.
+Students use database functions to join an exam, work on an attempt, and look up released results.
+During an attempt, those functions validate the student's session token before returning exam data or accepting
+answers. The database counts reported violations and automatically submits the attempt at the teacher's limit.
 
 The join function issues the existing token when the exam code and email match. These details therefore allow
 access to that student's attempt without email verification. Older full-name clients remain compatible. Existing deployments must apply
@@ -212,8 +232,9 @@ the SQL editor or restore the CLI account's project access.
 3. After a student submits, open **Results → View answers → Suggest scores with AI** for each rubric-backed essay.
    Review the proposed partial points, explanations, and answer quotations. Edit them as needed, then choose
    **Approve rubric score**. Manual scoring remains available without AI or a working key, including zero scores.
-4. Pending essays do not count as a final zero. A student's total stays hidden until every essay is approved, even
-   after the exam closes or the teacher releases results. Approved grades follow the existing release/hide controls.
+4. When the teacher releases results, students can see a partial score from graded answers and approved essays.
+   Pending essays show **Awaiting grading**. The final score appears once every essay has an approved grade,
+   subject to the teacher's release and visibility settings.
 5. Regrading preserves approved points. Changing an essay's prompt, rubric, or point limit requires fresh approval.
    Duplicating an exam copies its rubric; retakes remove the previous attempt's answers and suggestions.
 
@@ -265,6 +286,3 @@ Run `npm run test:essay-queue` for offline selection, saved-draft reuse, sequent
 Run `npm run test:grading` for isolated PostgreSQL tests of grading, result visibility, stale suggestions, retakes,
 request limits and ownership controls. These tests use PGlite and do not connect to the online database. If editing the grading
 migration, run `node scripts/sync-grading-schema.mjs` to refresh its student-result function and the standalone setup.
-#   E x a m P r o c t o r  
- #   E x a m P r o c t o r  
- 
